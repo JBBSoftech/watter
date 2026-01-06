@@ -11,9 +11,9 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   http: ^1.2.2
-  carousel_slider: ^5.1.1
+  carousel_slider: ^4.2.1
   shared_preferences: ^2.2.0
-  flutter_local_notifications: ^19.5.0
+  flutter_local_notifications: ^17.2.2
   provider: ^6.1.5+1
   socket_io_client: ^2.0.3+1
   flutter_screenutil: ^5.8.4
