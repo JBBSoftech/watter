@@ -8,22 +8,22 @@ import 'config/environment.dart';
 
 // Define PriceUtils class
 class PriceUtils {
-  static String formatPrice(double price, {String currency = '\$'}) {
-    return '$currency\${price.toStringAsFixed(2)}';
+  static String formatPrice(double price, {String currency = '\\\$'}) {
+    return '\\$currency\\\\\${price.toStringAsFixed(2)}';
   }
   
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
     // Remove all currency symbols and non-numeric characters except decimal point
-    String numericString = priceString.replaceAll(RegExp(r'[^d.]'), '');
+    String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
     return double.tryParse(numericString) ?? 0.0;
   }
   
   // Detect currency symbol from price string
   static String detectCurrency(String priceString) {
     if (priceString.contains('₹')) return '₹';
-    if (priceString.contains('\$')) return '\$';
+    if (priceString.contains('\\\\$')) return '\\\\$';
     if (priceString.contains('€')) return '€';
     if (priceString.contains('£')) return '£';
     if (priceString.contains('¥')) return '¥';
@@ -31,7 +31,33 @@ class PriceUtils {
     if (priceString.contains('₽')) return '₽';
     if (priceString.contains('₦')) return '₦';
     if (priceString.contains('₨')) return '₨';
-    return '\$'; // Default to dollar
+    return '\\\\$'; // Default to dollar
+  }
+
+  static String currencySymbolFromCode(String code) {
+    switch (code.toUpperCase()) {
+      case 'INR':
+        return '₹';
+      case 'USD':
+        return '\\\\$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      case 'JPY':
+        return '¥';
+      case 'KRW':
+        return '₩';
+      case 'RUB':
+        return '₽';
+      case 'NGN':
+        return '₦';
+      case 'PKR':
+      case 'LKR':
+        return '₨';
+      default:
+        return '\\\\$';
+    }
   }
   
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
@@ -120,11 +146,7 @@ class CartManager extends ChangeNotifier {
     notifyListeners();
   }
   
-  void clearCart() {
-    clear(); // Reuse existing clear method
-  }
-  
-  void clear() {
+  void clearCart() {\n    clear(); // Reuse existing clear method\n  }\n  \n  void clear() {
     _items.clear();
     notifyListeners();
   }
@@ -152,7 +174,7 @@ class CartManager extends ChangeNotifier {
   }
   
   double get finalTotalWithShipping {
-    return PriceUtils.applyShipping(totalWithTax, 5.99); // $5.99 shipping
+    return PriceUtils.applyShipping(totalWithTax, 5.99); // \$5.99 shipping
   }
 }
 
@@ -171,18 +193,14 @@ class WishlistItem {
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '$',
+    this.currencySymbol = '\\\$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
 }
 
 // Wishlist manager
-class WishlistManager extends ChangeNotifier {
-  void clearWishlist() {
-    clear(); // Reuse existing clear method
-  }
-
+class WishlistManager extends ChangeNotifier {\n  void clearWishlist() {\n    clear(); // Reuse existing clear method\n  }\n
   final List<WishlistItem> _items = [];
   
   List<WishlistItem> get items => List.unmodifiable(_items);
@@ -199,11 +217,7 @@ class WishlistManager extends ChangeNotifier {
     notifyListeners();
   }
   
-  void clearCart() {
-    clear(); // Reuse existing clear method
-  }
-  
-  void clear() {
+  void clearCart() {\n    clear(); // Reuse existing clear method\n  }\n  \n  void clear() {
     _items.clear();
     notifyListeners();
   }
@@ -321,102 +335,6 @@ class DynamicAppSync {
   }
 }
 
-// Function to load dynamic product data from backend
-Future<void> loadDynamicProductData() async {
-  try {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-    
-    // Get dynamic admin ID
-    final adminId = await AdminManager.getCurrentAdminId();
-    print('🔍 Loading dynamic data with admin ID: ${adminId}');
-    
-    final response = await http.get(
-      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-      headers: {'Content-Type': 'application/json'},
-    );
-    
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['success'] == true && data['pages'] != null) {
-        final pages = data['pages'] as List;
-        final newProducts = <Map<String, dynamic>>[];
-        
-        // Extract products from all widgets
-        for (var page in pages) {
-          if (page['widgets'] != null) {
-            for (var widget in page['widgets']) {
-              if (widget['properties'] != null && widget['properties']['productCards'] != null) {
-                final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
-                newProducts.addAll(products);
-              }
-            }
-          }
-        }
-        
-        setState(() {
-          productCards = newProducts;
-          isLoading = false;
-        });
-        
-        print('✅ Loaded ${productCards.length} dynamic products');
-      } else {
-        throw Exception('Invalid response format');
-      }
-    } else {
-      throw Exception('HTTP ${response.statusCode}');
-    }
-  } catch (e) {
-    print('❌ Error loading dynamic data: $e');
-    setState(() {
-      errorMessage = e.toString();
-      isLoading = false;
-    });
-  }
-}
-
-// Real-time updates with WebSocket
-final DynamicAppSync _appSync = DynamicAppSync();
-StreamSubscription? _updateSubscription;
-
-void startRealTimeUpdates() async {
-  final adminId = await AdminManager.getCurrentAdminId();
-  if (adminId != null) {
-    _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
-    
-    _updateSubscription = _appSync.updates.listen((update) {
-      if (!mounted) return;
-      
-      final type = update['type']?.toString().toLowerCase();
-      print('📱 Received real-time update: $type');
-      
-      switch (type) {
-        case 'home-page':
-        case 'dynamic-update':
-          loadDynamicProductData();
-          break;
-      }
-    });
-  }
-}
-
-@override
-void initState() {
-  super.initState();
-  loadDynamicProductData();
-  startRealTimeUpdates();
-}
-
-@override
-void dispose() {
-  _updateSubscription?.cancel();
-  _appSync.dispose();
-  super.dispose();
-}
-
-
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -435,7 +353,7 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme(
         elevation: 4,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
@@ -481,8 +399,8 @@ class SessionManager {
     required String loadedAppName,
   }) async {
     appName = loadedAppName;
-    print('🔍 Admin config loaded: $loadedAppName');
-    print('🎨 App name set globally: ${SessionManager.appName}');
+    print('🔍 Admin config loaded: \$loadedAppName');
+    print('🎨 App name set globally: \${SessionManager.appName}');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('app_name', appName);
@@ -494,8 +412,8 @@ class SessionManager {
   }) async {
     currentUserId = userId;
     authToken = token;
-    print('✅ User logged in: $userId');
-    print('🔐 Session bound to userId: $userId');
+    print('✅ User logged in: \$userId');
+    print('🔐 Session bound to userId: \$userId');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
@@ -518,7 +436,7 @@ class AdminManager {
     );
 
     _currentAdminId = adminId;
-    print('✅ Admin ID locked: $adminId');
+    print('✅ Admin ID locked: \$adminId');
     return adminId;
   }
   
@@ -526,7 +444,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.27.148.252:5000/api/admin/app-info'),
+        Uri.parse('${Environment.apiBase}/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -541,7 +459,7 @@ class AdminManager {
         }
       }
     } catch (e) {
-      print('Auto-detection failed: $e');
+      print('Auto-detection failed: \$e');
     }
     return null;
   }
@@ -573,11 +491,11 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Splash screen using admin ID: ${adminId}');
+      print('🔍 Splash screen using admin ID: \${adminId}');
 
       // Load admin splash config for this fixed adminId
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/admin/splash?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
       );
       
       if (response.statusCode == 200) {
@@ -588,10 +506,10 @@ class _SplashScreenState extends State<SplashScreen> {
           setState(() {
             _appName = SessionManager.appName;
           });
-          print('✅ Splash screen loaded app name: ${_appName}');
+          print('✅ Splash screen loaded app name: \${_appName}');
         }
       } else {
-        print('⚠️ Splash screen API error: ${response.statusCode}');
+        print('⚠️ Splash screen API error: \${response.statusCode}');
         if (mounted) {
           setState(() {
             _appName = SessionManager.appName;
@@ -599,7 +517,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      print('Error fetching app name: ${e}');
+      print('Error fetching app name: \${e}');
       // If admin ID not found, show default and let user configure
       if (mounted) {
         setState(() {
@@ -701,7 +619,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.27.148.252:5000/api/login'),
+        Uri.parse('${Environment.apiBase}/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -741,7 +659,7 @@ class _SignInPageState extends State<SignInPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign in failed: \${e.toString().replaceAll("Exception: ", "")}'),
+            content: Text('Sign in failed: \\\${e.toString().replaceAll("Exception: ", "")}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -871,11 +789,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validateEmail(String email) {
-    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}$').hasMatch(email);
+    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}\$').hasMatch(email);
   }
 
   bool _validatePhone(String phone) {
-    return RegExp(r'^[0-9]{10}$').hasMatch(phone);
+    return RegExp(r'^[0-9]{10}\$').hasMatch(phone);
   }
 
   bool _validatePassword(String password) {
@@ -922,7 +840,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('${Environment.apiBase}/api/signup'),
+        Uri.parse('\${Environment.apiBase}/api/signup'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'firstName': firstName,
@@ -970,7 +888,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed: 2.718281828459045'),
+            content: Text('Failed: ${e.toString().replaceAll('Exception: ', '')}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1097,6 +1015,8 @@ class _HomePageState extends State<HomePage> {
   int _currentPageIndex = 0;
   final CartManager _cartManager = CartManager();
   final WishlistManager _wishlistManager = WishlistManager();
+  final DynamicAppSync _appSync = DynamicAppSync();
+  StreamSubscription? _updateSubscription;
   int _cartNotificationCount = 0;
   int _wishlistNotificationCount = 0;
   String _searchQuery = '';
@@ -1115,15 +1035,37 @@ class _HomePageState extends State<HomePage> {
     _dynamicProductCards = List.from(productCards); // Fallback to static data
     _filteredProducts = List.from(_dynamicProductCards);
     _loadDynamicData();
+    _startRealTimeUpdates();
   }
 
   @override
   void dispose() {
+    _updateSubscription?.cancel();
+    _appSync.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
-  // Real-time updates removed - app updates dynamically via WebSocket
+  void _startRealTimeUpdates() async {
+    try {
+      final adminId = await AdminManager.getCurrentAdminId();
+      _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
+
+      _updateSubscription?.cancel();
+      _updateSubscription = _appSync.updates.listen((update) {
+        if (!mounted) return;
+        final type = update['type']?.toString().toLowerCase();
+        switch (type) {
+          case 'home-page':
+          case 'dynamic-update':
+            _loadDynamicAppConfig();
+            break;
+        }
+      });
+    } catch (e) {
+      print('Real-time updates error: \$e');
+    }
+  }
 
   Future<void> _loadDynamicData() async {
     setState(() => _isLoading = true);
@@ -1138,10 +1080,10 @@ class _HomePageState extends State<HomePage> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Home page using admin ID: ${adminId}');
+      print('🔍 Home page using admin ID: \${adminId}');
       
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -1200,11 +1142,11 @@ class _HomePageState extends State<HomePage> {
             _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
             _isLoading = false;
           });
-          print('✅ Loaded ${_dynamicProductCards.length} products from backend');
+          print('✅ Loaded \${_dynamicProductCards.length} products from backend');
         }
       }
     } catch (e) {
-      print('❌ Error loading dynamic data: $e');
+      print('❌ Error loading dynamic data: \$e');
       setState(() => _isLoading = false);
     }
   }
@@ -1992,7 +1934,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2015,7 +1957,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error loading store data: 2.718281828459045');
+      print('Error loading store data: $e');
     }
     
     // Return default values if API fails
@@ -2079,7 +2021,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2102,7 +2044,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error loading products: 2.718281828459045');
+      print('Error loading products: $e');
     }
     
     return [];
@@ -2173,7 +2115,7 @@ class _HomePageState extends State<HomePage> {
     final bool isSoldOut = quantityAvailable <= 0;
     final String discountLabel;
     if (hasPercentDiscount) {
-      discountLabel = '0% OFF';
+      discountLabel = '${badgeDiscountPercent.toStringAsFixed(badgeDiscountPercent % 1 == 0 ? 0 : 1)}% OFF';
     } else {
       discountLabel = 'OFFER';
     }
@@ -2182,7 +2124,7 @@ class _HomePageState extends State<HomePage> {
     if (isSoldOut) {
       stockLabel = 'SOLD OUT';
     } else {
-      stockLabel = 'In stock: 0';
+      stockLabel = 'In stock: $quantityAvailable';
     }
     final bool isInWishlist = _wishlistManager.isInWishlist(productId);
 
