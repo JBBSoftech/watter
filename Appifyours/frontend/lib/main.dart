@@ -526,7 +526,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.113.124.252:5000/api/admin/app-info'),
+        Uri.parse('http://10.27.148.252:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -701,7 +701,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.113.124.252:5000/api/login'),
+        Uri.parse('http://10.27.148.252:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -1106,6 +1106,7 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _homeWidgets = [];
   Map<String, dynamic> _dynamicStoreInfo = {};
   Map<String, dynamic> _dynamicDesignSettings = {};
+  Color _pageBackgroundColor = Colors.white;
 
   @override
   void initState() {
@@ -1149,6 +1150,15 @@ class _HomePageState extends State<HomePage> {
         if (data['success'] == true) {
           final pages = (data['pages'] is List) ? List.from(data['pages']) : <dynamic>[];
 
+          // Page-level properties (overall background, etc.)
+          Map<String, dynamic> pageProps = <String, dynamic>{};
+          if (pages.isNotEmpty && pages.first is Map) {
+            final propsRaw = (pages.first as Map)['properties'];
+            if (propsRaw is Map) {
+              pageProps = Map<String, dynamic>.from(propsRaw);
+            }
+          }
+
           // Extract widgets from first page (Home)
           List<Map<String, dynamic>> extractedWidgets = [];
           if (pages.isNotEmpty && pages.first is Map && (pages.first as Map)['widgets'] is List) {
@@ -1187,6 +1197,7 @@ class _HomePageState extends State<HomePage> {
             _homeWidgets = extractedWidgets;
             _dynamicStoreInfo = storeInfo;
             _dynamicDesignSettings = designSettings;
+            _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
             _isLoading = false;
           });
           print('✅ Loaded ${_dynamicProductCards.length} products from backend');
@@ -1285,19 +1296,22 @@ class _HomePageState extends State<HomePage> {
 
     return RefreshIndicator(
       onRefresh: _loadDynamicData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          children: (
-            _homeWidgets.isNotEmpty
-                ? _homeWidgets.map((w) => _buildHomeWidgetFromConfig(w)).toList()
-                : <Widget>[
-                    _buildHomeWidgetFromConfig({'name': 'HeaderWidget', 'properties': {}}),
-                    _buildHomeWidgetFromConfig({'name': 'HeroBannerWidget', 'properties': {}}),
-                    _buildHomeWidgetFromConfig({'name': 'ProductSearchBarWidget', 'properties': {}}),
-                    _buildHomeWidgetFromConfig({'name': 'Catalog View Card', 'properties': {}}),
-                    _buildHomeWidgetFromConfig({'name': 'StoreInfoWidget', 'properties': {}}),
-                  ]
+      child: Container(
+        color: _pageBackgroundColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: (
+              _homeWidgets.isNotEmpty
+                  ? _homeWidgets.map((w) => _buildHomeWidgetFromConfig(w)).toList()
+                  : <Widget>[
+                      _buildHomeWidgetFromConfig({'name': 'HeaderWidget', 'properties': {}}),
+                      _buildHomeWidgetFromConfig({'name': 'HeroBannerWidget', 'properties': {}}),
+                      _buildHomeWidgetFromConfig({'name': 'ProductSearchBarWidget', 'properties': {}}),
+                      _buildHomeWidgetFromConfig({'name': 'Catalog View Card', 'properties': {}}),
+                      _buildHomeWidgetFromConfig({'name': 'StoreInfoWidget', 'properties': {}}),
+                    ]
+            ),
           ),
         ),
       ),
@@ -1541,6 +1555,9 @@ class _HomePageState extends State<HomePage> {
         final borderColor = props['borderColor'] != null
             ? _colorFromHex(props['borderColor'])
             : Colors.grey.shade300;
+        final backgroundColor = props['backgroundColor'] != null
+            ? _colorFromHex(props['backgroundColor'])
+            : Colors.white;
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -1572,7 +1589,7 @@ class _HomePageState extends State<HomePage> {
                       borderSide: BorderSide(color: textColor, width: borderWidth),
                     ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: backgroundColor,
                     isDense: false,
                   ),
                 ),
@@ -1583,7 +1600,7 @@ class _HomePageState extends State<HomePage> {
 
       case 'Catalog View Card':
       case 'Product Detail Card':
-        return _buildDynamicProductGrid();
+        return _buildDynamicProductGrid(styleProps: props);
 
       case 'StoreInfoWidget':
         // Dynamic StoreInfo Widget - prefers widget properties, falls back to API data
@@ -2014,8 +2031,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Build dynamic product grid
-  Widget _buildDynamicProductGrid() {
+  Widget _buildDynamicProductGrid({Map<String, dynamic>? styleProps}) {
     final products = _searchQuery.isEmpty ? _dynamicProductCards : _filteredProducts;
+
+    final Map<String, dynamic> props = styleProps ?? const <String, dynamic>{};
+    final Color gridBackgroundColor = _colorFromHex(props['backgroundColor']?.toString()) ?? Colors.transparent;
 
     if (products.isEmpty) {
       return Container(
@@ -2034,6 +2054,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     return Container(
+      color: gridBackgroundColor == Colors.transparent ? null : gridBackgroundColor,
       padding: const EdgeInsets.all(16),
       child: GridView.builder(
         shrinkWrap: true,
@@ -2047,7 +2068,7 @@ class _HomePageState extends State<HomePage> {
         itemCount: products.length,
         itemBuilder: (context, index) {
           final product = products[index];
-          return _buildProductCard(product, index);
+          return _buildProductCard(product, index, styleProps: props);
         },
       ),
     );
@@ -2119,9 +2140,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Build individual product card
-  Widget _buildProductCard(Map<String, dynamic> product, int index) {
+  Widget _buildProductCard(Map<String, dynamic> product, int index, {Map<String, dynamic>? styleProps}) {
     final String productId = 'product_' + index.toString();
     final String productName = product['productName'] ?? product['name'] ?? 'Product';
+
+    final Map<String, dynamic> props = styleProps ?? const <String, dynamic>{};
+    final Color cardBackgroundColor = _colorFromHex(props['cardBackgroundColor']?.toString()) ?? const Color(0xFFFFFFFF);
+    final Color borderColor = _colorFromHex(props['borderColor']?.toString()) ?? Colors.transparent;
+    final Color priceColor = _colorFromHex(props['priceColor']?.toString()) ?? Colors.blue;
+    final Color discountBadgeColor = _colorFromHex(props['discountBadgeColor']?.toString()) ?? Colors.redAccent;
     
     // Try multiple possible price field names
     final String? priceField1 = product['price']?.toString();
@@ -2165,9 +2192,10 @@ class _HomePageState extends State<HomePage> {
       ),
       child: Card(
         elevation: 4,
-        color: const Color(0xFFFFFFFF),
+        color: cardBackgroundColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: borderColor, width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2220,7 +2248,7 @@ class _HomePageState extends State<HomePage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.redAccent,
+                          color: discountBadgeColor,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -2284,10 +2312,10 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Text(
                               currencySymbol + effectivePrice.toStringAsFixed(2),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+                                color: priceColor,
                               ),
                             ),
                             const SizedBox(width: 4),
