@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:config/environment.dart';
+import 'config/environment.dart';
 
 // Define PriceUtils class
 class PriceUtils {
