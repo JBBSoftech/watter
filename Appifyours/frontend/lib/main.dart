@@ -4,12 +4,16 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'config/environment.dart';
+
+// Embedded environment config (standalone generated app)
+class Environment {
+  static const String apiBase = 'http://10.27.148.252:5000';
+}
 
 // Define PriceUtils class
 class PriceUtils {
-  static String formatPrice(double price, {String currency = '\\\$'}) {
-    return '\\$currency\\\\\${price.toStringAsFixed(2)}';
+  static String formatPrice(double price, {String currency = '\$'}) {
+    return '$currency${price.toStringAsFixed(2)}';
   }
   
   // Extract numeric value from price string with any currency symbol
@@ -23,7 +27,7 @@ class PriceUtils {
   // Detect currency symbol from price string
   static String detectCurrency(String priceString) {
     if (priceString.contains('₹')) return '₹';
-    if (priceString.contains('\\\\$')) return '\\\\$';
+    if (priceString.contains('\$')) return '\$';
     if (priceString.contains('€')) return '€';
     if (priceString.contains('£')) return '£';
     if (priceString.contains('¥')) return '¥';
@@ -31,33 +35,7 @@ class PriceUtils {
     if (priceString.contains('₽')) return '₽';
     if (priceString.contains('₦')) return '₦';
     if (priceString.contains('₨')) return '₨';
-    return '\\\\$'; // Default to dollar
-  }
-
-  static String currencySymbolFromCode(String code) {
-    switch (code.toUpperCase()) {
-      case 'INR':
-        return '₹';
-      case 'USD':
-        return '\\\\$';
-      case 'EUR':
-        return '€';
-      case 'GBP':
-        return '£';
-      case 'JPY':
-        return '¥';
-      case 'KRW':
-        return '₩';
-      case 'RUB':
-        return '₽';
-      case 'NGN':
-        return '₦';
-      case 'PKR':
-      case 'LKR':
-        return '₨';
-      default:
-        return '\\\\$';
-    }
+    return '\$'; // Default to dollar
   }
   
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
@@ -193,7 +171,7 @@ class WishlistItem {
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '\\\$',
+    this.currencySymbol = '\$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -228,13 +206,13 @@ class WishlistManager extends ChangeNotifier {\n  void clearWishlist() {\n    cl
 }
 
 // Dynamic Configuration from Form
-final String gstNumber = '$gstNumber';
-final String selectedCategory = '$selectedCategory';
+final String gstNumber = '18';
+final String selectedCategory = 'Piece';
 final Map<String, dynamic> storeInfo = {
-  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-  'address': '${storeInfo['address'] ?? '123 Main St'}',
-  'email': '${storeInfo['email'] ?? 'support@example.com'}',
-  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+  'storeName': 'k',
+  'address': '',
+  'email': 'deena@gmail.com',
+  'phone': '7787465873465876435',
 };
 
 // Dynamic Product Data - Will be loaded from backend
@@ -353,7 +331,7 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         elevation: 4,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
@@ -1015,8 +993,6 @@ class _HomePageState extends State<HomePage> {
   int _currentPageIndex = 0;
   final CartManager _cartManager = CartManager();
   final WishlistManager _wishlistManager = WishlistManager();
-  final DynamicAppSync _appSync = DynamicAppSync();
-  StreamSubscription? _updateSubscription;
   int _cartNotificationCount = 0;
   int _wishlistNotificationCount = 0;
   String _searchQuery = '';
@@ -1035,44 +1011,18 @@ class _HomePageState extends State<HomePage> {
     _dynamicProductCards = List.from(productCards); // Fallback to static data
     _filteredProducts = List.from(_dynamicProductCards);
     _loadDynamicData();
-    _startRealTimeUpdates();
   }
 
   @override
   void dispose() {
-    _updateSubscription?.cancel();
-    _appSync.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
-  void _startRealTimeUpdates() async {
-    try {
-      final adminId = await AdminManager.getCurrentAdminId();
-      _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
-
-      _updateSubscription?.cancel();
-      _updateSubscription = _appSync.updates.listen((update) {
-        if (!mounted) return;
-        final type = update['type']?.toString().toLowerCase();
-        switch (type) {
-          case 'home-page':
-          case 'dynamic-update':
-            _loadDynamicAppConfig();
-            break;
-        }
-      });
-    } catch (e) {
-      print('Real-time updates error: \$e');
-    }
-  }
+  // Real-time updates removed - app updates dynamically via WebSocket
 
   Future<void> _loadDynamicData() async {
-    setState(() => _isLoading = true);
     await _loadDynamicAppConfig();
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
   }
 
   // Load dynamic data from backend
